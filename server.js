@@ -9,170 +9,215 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.post("/ask", async (req, res) => {
+const PORT = process.env.PORT || 10000;
 
-    const prompt = req.body.prompt;
+app.post("/ask", async (req, res) => {
 
     try {
 
+        const prompt = req.body.prompt;
+
+        // =========================
         // GEMINI
-        const geminiResponse = await axios.post(
+        // =========================
 
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_KEY}`,
+        let geminiText = "Gemini unavailable";
 
-            {
-                contents: [
-                    {
-                        parts: [
-                            {
-                                text: prompt
-                            }
-                        ]
-                    }
-                ]
-            }
-        );
+        try {
 
-        const geminiText =
-            geminiResponse.data
-                .candidates[0]
-                .content.parts[0]
-                .text;
+            const geminiResponse = await axios.post(
 
-        // DEEPSEEK
-        const deepseekResponse = await axios.post(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_KEY}`,
 
-            "https://api.deepseek.com/chat/completions",
-
-            {
-                model: "deepseek-chat",
-
-                messages: [
-                    {
-                        role: "user",
-                        content: prompt
-                    }
-                ]
-            },
-
-            {
-                headers: {
-
-                    Authorization:
-                        `Bearer ${process.env.DEEPSEEK_KEY}`,
-
-                    "Content-Type":
-                        "application/json"
+                {
+                    contents: [
+                        {
+                            parts: [
+                                {
+                                    text: prompt
+                                }
+                            ]
+                        }
+                    ]
                 }
-            }
-        );
 
-        const deepseekText =
-            deepseekResponse.data
-                .choices[0]
-                .message.content;
+            );
 
-        // OPENAI (optional)
-        let chatgptText =
-            "ChatGPT not connected";
+            geminiText =
+                geminiResponse.data.candidates?.[0]
+                    ?.content?.parts?.[0]?.text
+                || "No Gemini response";
 
-        if (process.env.OPENAI_KEY) {
+        } catch (error) {
 
-            try {
+            console.log("Gemini Error:");
 
-                const openaiResponse =
-                    await axios.post(
+            console.log(
+                error.response?.data || error.message
+            );
 
-                        "https://api.openai.com/v1/chat/completions",
-
-                        {
-                            model: "gpt-4.1-mini",
-
-                            messages: [
-                                {
-                                    role: "user",
-                                    content: prompt
-                                }
-                            ]
-                        },
-
-                        {
-                            headers: {
-
-                                Authorization:
-                                    `Bearer ${process.env.OPENAI_KEY}`,
-
-                                "Content-Type":
-                                    "application/json"
-                            }
-                        }
-                    );
-
-                chatgptText =
-                    openaiResponse.data
-                        .choices[0]
-                        .message.content;
-
-            } catch {
-
-                chatgptText =
-                    "ChatGPT API error";
-            }
+            geminiText =
+                "Gemini quota exceeded or unavailable.";
         }
 
-        // CLAUDE (optional)
-        let claudeText =
-            "Claude not connected";
+        // =========================
+        // CHATGPT
+        // =========================
 
-        if (process.env.CLAUDE_KEY) {
+        let chatgptText = "ChatGPT unavailable";
 
-            try {
+        try {
 
-                const claudeResponse =
-                    await axios.post(
+            const openaiResponse = await axios.post(
 
-                        "https://api.anthropic.com/v1/messages",
+                "https://api.openai.com/v1/chat/completions",
 
+                {
+                    model: "gpt-3.5-turbo",
+
+                    messages: [
                         {
-                            model:
-                                "claude-3-5-sonnet-20241022",
-
-                            max_tokens: 500,
-
-                            messages: [
-                                {
-                                    role: "user",
-                                    content: prompt
-                                }
-                            ]
-                        },
-
-                        {
-                            headers: {
-
-                                "x-api-key":
-                                    process.env.CLAUDE_KEY,
-
-                                "anthropic-version":
-                                    "2023-06-01",
-
-                                "Content-Type":
-                                    "application/json"
-                            }
+                            role: "user",
+                            content: prompt
                         }
-                    );
+                    ]
+                },
 
-                claudeText =
-                    claudeResponse.data
-                        .content[0]
-                        .text;
+                {
+                    headers: {
+                        "Authorization":
+                            `Bearer ${process.env.OPENAI_KEY}`,
+                        "Content-Type":
+                            "application/json"
+                    }
+                }
+            );
 
-            } catch {
+            chatgptText =
+                openaiResponse.data.choices?.[0]
+                    ?.message?.content
+                || "No ChatGPT response";
 
-                claudeText =
-                    "Claude API error";
-            }
+        } catch (error) {
+
+            console.log("ChatGPT Error:");
+
+            console.log(
+                error.response?.data || error.message
+            );
+
+            chatgptText =
+                "ChatGPT unavailable.";
         }
+
+        // =========================
+        // CLAUDE
+        // =========================
+
+        let claudeText = "Claude unavailable";
+
+        try {
+
+            const claudeResponse = await axios.post(
+
+                "https://api.anthropic.com/v1/messages",
+
+                {
+                    model: "claude-3-haiku-20240307",
+                    max_tokens: 300,
+
+                    messages: [
+                        {
+                            role: "user",
+                            content: prompt
+                        }
+                    ]
+                },
+
+                {
+                    headers: {
+                        "x-api-key":
+                            process.env.CLAUDE_KEY,
+
+                        "anthropic-version":
+                            "2023-06-01",
+
+                        "Content-Type":
+                            "application/json"
+                    }
+                }
+            );
+
+            claudeText =
+                claudeResponse.data.content?.[0]?.text
+                || "No Claude response";
+
+        } catch (error) {
+
+            console.log("Claude Error:");
+
+            console.log(
+                error.response?.data || error.message
+            );
+
+            claudeText =
+                "Claude unavailable.";
+        }
+
+        // =========================
+        // DEEPSEEK
+        // =========================
+
+        let deepseekText = "DeepSeek unavailable";
+
+        try {
+
+            const deepseekResponse = await axios.post(
+
+                "https://api.deepseek.com/chat/completions",
+
+                {
+                    model: "deepseek-chat",
+
+                    messages: [
+                        {
+                            role: "user",
+                            content: prompt
+                        }
+                    ]
+                },
+
+                {
+                    headers: {
+                        "Authorization":
+                            `Bearer ${process.env.DEEPSEEK_KEY}`,
+
+                        "Content-Type":
+                            "application/json"
+                    }
+                }
+            );
+
+            deepseekText =
+                deepseekResponse.data.choices?.[0]
+                    ?.message?.content
+                || "No DeepSeek response";
+
+        } catch (error) {
+
+            console.log("DeepSeek Error:");
+
+            console.log(
+                error.response?.data || error.message
+            );
+
+            deepseekText =
+                "DeepSeek unavailable.";
+        }
+
+        // =========================
+        // FINAL RESPONSE
+        // =========================
 
         res.json({
 
@@ -185,22 +230,16 @@ app.post("/ask", async (req, res) => {
             deepseek: deepseekText
         });
 
-    } catch (e) {
+    } catch (error) {
 
-        console.log(
-            e.response?.data || e.message
-        );
+        console.log(error);
 
         res.status(500).json({
 
-            error:
-                "Server error"
+            error: "Server crashed"
         });
     }
 });
-
-const PORT =
-    process.env.PORT || 3000;
 
 app.listen(PORT, () => {
 
