@@ -241,6 +241,25 @@ app.post("/ask", async (req, res) => {
     }
 });
 
+// =========================
+// CHECK ENV VARIABLES
+// =========================
+
+app.get("/check-env", (req, res) => {
+
+    res.json({
+
+        gemini: !!process.env.GEMINI_KEY,
+
+        openai: !!process.env.OPENAI_KEY,
+
+        claude: !!process.env.CLAUDE_KEY,
+
+        deepseek: !!process.env.DEEPSEEK_KEY
+    });
+
+});
+
 app.listen(PORT, () => {
 
     console.log(
